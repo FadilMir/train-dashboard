@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI-Powered Train Network — Dashboard & Simulation</title>
+
+  <!-- Google Fonts + Tailwind CDN + Chart.js -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0f1724; color: #e6eef8; }
+    .bg-card { background-color: #0b1220; border: 1px solid rgba(115, 54, 198, 0.14); }
+    .header-bg { background: linear-gradient(90deg,#6a0dad,#4f32c9); }
+    canvas { max-height: 260px; }
+    .container { max-height: calc(100vh - 3rem); overflow-y: auto; padding-bottom: 2rem; }
+    .tab-btn.active { background: rgba(255,255,255,0.04); border-bottom: 2px solid rgba(99,102,241,0.8); }
+    #sectionCanvas { background: linear-gradient(180deg,#081225,#071022); border-radius: 8px; display:block; }
+    .chip { background: rgba(255,255,255,0.03); padding: 0.25rem 0.5rem; border-radius: 6px; }
+    .small { font-size: 0.75rem; color: #bfc9d9; }
+    .green { color: #10b981; } .yellow { color: #f59e0b; } .red { color: #ef4444; }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container mx-auto max-w-7xl">
+    <div class="header-bg text-white p-4 rounded-lg shadow-lg mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold">AI-Powered Train Network — Dashboard & Simulation (Graph)</h1>
+          <p class="text-sm opacity-90">Realistic section topology (nodes & edges) + interactive disruption simulation</p>
+        </div>
+        <div class="text-right small">
+          <div>Team: <span class="chip">404 Found</span></div>
+          <div class="mt-1">Demo stage: <span class="chip">SIH Final</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4">
+      <button id="tabDash" class="tab-btn px-4 py-2 rounded-md active">Dashboard</button>
+      <button id="tabSim" class="tab-btn px-4 py-2 rounded-md">Simulation</button>
+    </div>
+
+    <!-- --- DASHBOARD --- -->
+    <div id="dashboardView">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold text-purple-300">Punctuality Rate</h2>
+          <div class="text-3xl font-bold">96.5%</div>
+          <p class="small mt-1">Target: 97.0%</p>
+        </div>
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold text-purple-300">Average Delay</h2>
+          <div class="text-3xl font-bold">2.1 min</div>
+          <p class="small mt-1">Last 24 hrs</p>
+        </div>
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold text-purple-300">Throughput</h2>
+          <div class="text-3xl font-bold">85%</div>
+          <p class="small mt-1">Track Utilization</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold mb-2 text-purple-300">Real-time Recommendations</h2>
+          <div id="recommendationsStatic" class="space-y-2 text-sm">
+            <div class="p-3 bg-red-800 rounded-lg">
+              <p class="font-bold">⚠️ Emergency Warning</p>
+              <p class="small">Track obstacle detected near J. P. Nagar. Halt all trains in Sector 4 until cleared.</p>
+            </div>
+            <div class="p-3 bg-gray-800 rounded-lg">
+              <p class="font-bold">💡 Delay Mitigation Action</p>
+              <p class="small">Train <strong>02357</strong> is delayed. Recommend rerouting to Platform <strong>3B</strong>. Expected arrival: <strong>23:45</strong>.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-card p-4 rounded-xl shadow-md overflow-x-auto">
+          <h2 class="text-lg font-semibold mb-2 text-purple-300">Live Train Status</h2>
+          <table class="min-w-full text-left text-sm">
+            <thead>
+              <tr class="text-gray-400 uppercase text-xs">
+                <th class="py-1 px-2 border-b border-gray-700">Train No.</th>
+                <th class="py-1 px-2 border-b border-gray-700">Train Name</th>
+                <th class="py-1 px-2 border-b border-gray-700">Status</th>
+                <th class="py-1 px-2 border-b border-gray-700">Delay</th>
+              </tr>
+            </thead>
+            <tbody id="liveTable" class="text-white"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold mb-2 text-purple-300">Real-time Train Delays</h2>
+          <canvas id="delaysChart"></canvas>
+        </div>
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold mb-2 text-purple-300">Track Utilization</h2>
+          <canvas id="throughputChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- SIMULATION --- -->
+    <div id="simulationView" style="display:none;">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <!-- Controls -->
+        <div class="bg-card p-4 rounded-xl shadow-md">
+          <h3 class="font-semibold text-lg text-purple-300 mb-2">Simulation Controls</h3>
+
+          <label class="small">Scenario</label>
+          <select id="scenarioSelect" class="w-full p-2 rounded mt-1 bg-transparent border border-gray-700">
+            <option value="none">No disruption (baseline)</option>
+            <option value="track">Track Obstacle (block an edge)</option>
+            <option value="engine">Engine Failure (single train)</option>
+            <option value="weather">Adverse Weather (speed reduction)</option>
+            <option value="random">Random disruption</option>
+          </select>
+
+          <label class="small mt-3">Number of trains</label>
+          <input id="numTrains" type="range" min="3" max="8" value="5" class="w-full mt-1">
+
+          <div class="flex gap-2 mt-3">
+            <button id="btnStart" class="px-3 py-2 rounded bg-indigo-600">Start</button>
+            <button id="btnPause" class="px-3 py-2 rounded bg-gray-700">Pause</button>
+            <button id="btnReset" class="px-3 py-2 rounded bg-gray-700">Reset</button>
+          </div>
+
+          <button id="btnRunAI" class="w-full mt-3 px-3 py-2 rounded bg-green-600">Run AI Recommendation</button>
+
+          <h4 class="text-sm font-semibold mt-4 text-purple-300">Selected Train</h4>
+          <select id="trainSelect" class="w-full p-2 rounded bg-transparent border border-gray-700"></select>
+
+          <div id="trainDetails" class="mt-3 small text-gray-200"></div>
+        </div>
+
+        <!-- Canvas / Map -->
+        <div class="lg:col-span-2 bg-card p-4 rounded-xl shadow-md">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-semibold text-lg text-purple-300">Section Schematic</h3>
+            <div class="small text-gray-300">Nodes & edges. Edge = single track segment (capacity: 1 train)</div>
+          </div>
+          <canvas id="sectionCanvas" width="1000" height="320"></canvas>
+
+          <div class="grid grid-cols-2 gap-2 mt-3">
+            <div class="bg-gray-900 p-3 rounded small">
+              <div><strong>Avg Delay</strong></div>
+              <div id="simAvgDelay">—</div>
+            </div>
+            <div class="bg-gray-900 p-3 rounded small">
+              <div><strong>Throughput</strong></div>
+              <div id="simThroughput">—</div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <h4 class="text-sm font-semibold text-purple-300">AI Recommendation & Explanation</h4>
+            <div id="aiOutput" class="mt-2 p-3 bg-transparent border border-gray-800 rounded small">No recommendation yet.</div>
+          </div>
+
+          <div class="mt-4">
+            <h4 class="text-sm font-semibold text-purple-300">Baseline vs AI-assisted: Avg Delay over Time</h4>
+            <canvas id="simResultChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-xs text-gray-400 mt-6">
+      Tip: The section is now modelled as a graph: trains occupy edges. Blocked edges cannot be entered; only one train per edge.
+    </div>
+  </div>
+
+  <script>
+  /*****************************************************************
+   * Graph-based simulation
+   * - nodes: 2 rows x 4 cols (8 nodes)
+   * - edges: horizontal on both rows + crossovers
+   * - each edge: capacity = 1 (occupiedBy)
+   * - trains move edge-by-edge using path found by BFS
+   *****************************************************************/
+
+  const rand = (a,b) => a + Math.random()*(b-a);
+  const deepClone = (o) => JSON.parse(JSON.stringify(o));
+
+  // canvas
+  const canvas = document.getElementById('sectionCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // sim globals
+  const TICK_MS = 240;
+  let simInterval = null;
+  let simTime = 0;
+  let trains = [];
+  let nodes = [];
+  let edges = [];
+  let edgesMap = {};
+  let adjacency = {};
+  let simRunning = false;
+  let scenarioObj = { type: 'none' };
+  let simDurationLimit = 400;
+
+  // speeds (progress-per-tick multiplier baseline)
+  // We'll keep original nominal speeds but they will be scaled for progress per tick.
+  const speedScale = 0.06; // multiply speed_nominal by this to get progress-per-tick
+
+  // Build a small network graph (2 rows x 4 cols)
+  function buildGraph() {
+    nodes = [];
+    edges = [];
+    edgesMap = {};
+    adjacency = {};
+    const marginX = 70;
+    const marginY = 40;
+    const cols = 4, rows = 2;
+    const w = canvas.width, h = canvas.height;
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        const id = `N${r}${c}`;
+        const x = marginX + (c*(w - 2*marginX)/(cols-1));
+        const y = marginY + (r*(h - 2*marginY)/(rows-1));
+        nodes.push({ id, x, y, col:c, row:r });
+        adjacency[id] = [];
+      }
+    }
+    function addEdge(u,v){
+      const id = `E${edges.length}`;
+      const edge = { id, from:u, to:v, blocked:false, occupiedBy:null };
+      edges.push(edge);
+      edgesMap[id] = edge;
+      adjacency[u].push({ node:v, edgeId:id });
+      adjacency[v].push({ node:u, edgeId:id });
+    }
+    // horizontal top row
+    addEdge('N00','N01'); addEdge('N01','N02'); addEdge('N02','N03');
+    // horizontal bottom row
+    addEdge('N10','N11'); addEdge('N11','N12'); addEdge('N12','N13');
+    // crossovers (junctions)
+    addEdge('N01','N11'); addEdge('N02','N12');
+    // now edges list ready
+  }
+
+  // BFS shortest path nodes (returns nodes list) - ignores blocked edges when asked
+  function findPathNodes(start, goal, ignoreBlocked=false) {
+    if (!start || !goal) return null;
+    const q = [start];
+    const prev = {}; prev[start] = null;
+    while(q.length){
+      const u = q.shift();
+      if (u === goal) break;
+      for (const nb of adjacency[u]) {
+        const e = edgesMap[nb.edgeId];
+        if (!ignoreBlocked && e.blocked) continue;
+        if (prev[nb.node] === undefined) {
+          prev[nb.node] = { prev: u, edgeId: nb.edgeId };
+          q.push(nb.node);
+        }
+      }
+    }
+    if (prev[goal] === undefined) return null;
+    const path = [];
+    let cur = goal;
+    while(cur !== null) {
+      path.unshift(cur);
+      cur = prev[cur] ? prev[cur].prev : null;
+    }
+    return path;
+  }
+
+  // convert nodes path to edgeId path (in order)
+  function pathNodesToEdgeIds(nodesPath) {
+    const ids = [];
+    for (let i=0;i<nodesPath.length-1;i++){
+      const a = nodesPath[i], b = nodesPath[i+1];
+      const candidate = adjacency[a].find(x=>x.node===b);
+      if (!candidate) return null;
+      ids.push(candidate.edgeId);
+    }
+    return ids;
+  }
+
+  // create trains: assign start and end nodes, compute pathNodes and pathEdges
+  function createTrains(n) {
+    const classes = [
+      {type:'Express', speed:3.2, priority:3},
+      {type:'VandeBh', speed:3.4, priority:3},
+      {type:'Shatabdi', speed:3.0, priority:3},
+      {type:'Local', speed:2.0, priority:1},
+      {type:'Freight', speed:1.4, priority:0},
+    ];
+    const allNodeIds = nodes.map(n=>n.id);
+    const result = [];
+    let tries = 0;
+    for (let i=0;i<n;i++) {
+      const cls = classes[i % classes.length];
+      // pick start and end ensuring path exists and first edge not already occupied
+      let pathNodes = null;
+      let start = null, goal = null, pathEdges = null;
+      while(!pathNodes && tries < 200) {
+        tries++;
+        start = allNodeIds[Math.floor(Math.random()*allNodeIds.length)];
+        goal = allNodeIds[Math.floor(Math.random()*allNodeIds.length)];
+        if (start === goal) continue;
+        pathNodes = findPathNodes(start, goal);
+        if (!pathNodes) continue;
+        pathEdges = pathNodesToEdgeIds(pathNodes);
+        // check first edge occupancy: if occupied choose another pair
+        if (pathEdges && edgesMap[pathEdges[0]] && edgesMap[pathEdges[0]].occupiedBy) { pathNodes = null; continue; }
+      }
+      if (!pathNodes) {
+        // fallback create a simple path along top left -> top right
+        pathNodes = ['N00','N03'];
+        pathEdges = pathNodesToEdgeIds(pathNodes) || [];
+      }
+      // scheduledArrival estimate: sum(edgeTime) where edgeTime=1/speed_nominal (float)
+      const edgeTimes = pathEdges.map(_=> 1 / cls.speed);
+      const scheduledArrival = Math.round(edgeTimes.reduce((a,b)=>a+b,0) * 10); // scaled to ticks
+      // set initial position: occupy first edge with small random progress
+      const train = {
+        id: `T${1000 + i}`,
+        name: `${cls.type} ${1000 + i}`,
+        type: cls.type,
+        priority: cls.priority,
+        speed_nominal: cls.speed,
+        pathNodes,
+        pathEdges,
+        edgeIndex: 0,      // index into pathEdges
+        progress: 0.0 + Math.random()*0.16, // start a little into the first edge
+        status: 'running',
+        scheduledArrival,
+        actualArrival: null,
+        delay: 0,
+        _holdRemaining: 0
+      };
+      // mark first edge occupied by this train (if free)
+      const firstEdge = pathEdges[0];
+      if (firstEdge && !edgesMap[firstEdge].occupiedBy) {
+        edgesMap[firstEdge].occupiedBy = train.id;
+      } else {
+        // leave as waiting at node (edge not yet reserved)
+        train.progress = 0;
+        train.status = 'stopped';
+      }
+      result.push(train);
+    }
+    return result;
+  }
+
+  // Reset everything
+  function resetSim() {
+    simTime = 0; simRunning = false;
+    buildGraph();
+    // clear edgesMap occupancy
+    edges.forEach(e=>{ e.blocked=false; e.occupiedBy=null; edgesMap[e.id]=e; });
+    trains = createTrains(parseInt(document.getElementById('numTrains').value));
+    updateTrainSelect();
+    updateLiveTable();
+    drawSection();
+    document.getElementById('aiOutput').innerText = 'No recommendation yet.';
+    updateSimMetricsDisplay();
+    updateSimChart([], []);
+  }
+
+  // Drawing: nodes, edges, trains
+  function drawSection() {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // draw edges
+    edges.forEach(e => {
+      const a = nodes.find(n=>n.id===e.from), b = nodes.find(n=>n.id===e.to);
+      ctx.lineWidth = 6;
+      // color
+      if (e.blocked) ctx.strokeStyle = '#ef4444';
+      else if (e.occupiedBy) ctx.strokeStyle = '#f59e0b';
+      else ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+
+      // small edge id label
+      const mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(230,238,248,0.7)';
+      ctx.fillText(e.id, mx+6, my+6);
+    });
+    // draw nodes
+    nodes.forEach(n=>{
+      ctx.beginPath();
+      ctx.fillStyle = '#0ea5a4';
+      ctx.arc(n.x, n.y, 8, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#e6eef8';
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillText(n.id, n.x+10, n.y+4);
+    });
+    // draw trains on their current edge (interpolate)
+    trains.forEach(t => {
+      if (t.edgeIndex >= t.pathEdges.length) {
+        // finished - draw at destination node
+        const nodeId = t.pathNodes[t.pathNodes.length - 1];
+        const node = nodes.find(n=>n.id===nodeId);
+        drawTrainAt(node.x, node.y - 18, t);
+      } else {
+        const edgeId = t.pathEdges[t.edgeIndex];
+        const edge = edgesMap[edgeId];
+        const fromNode = nodes.find(n=>n.id===edge.from);
+        const toNode = nodes.find(n=>n.id===edge.to);
+        const frac = Math.max(0, Math.min(1, t.progress));
+        // linear interpolation
+        const x = fromNode.x + (toNode.x - fromNode.x)*frac;
+        const y = fromNode.y + (toNode.y - fromNode.y)*frac;
+        drawTrainAt(x, y - 12, t);
+      }
+    });
+  }
+
+  function drawTrainAt(x,y,t) {
+    // color by priority
+    let color = '#10b981';
+    if (t.priority >= 3) color = '#7c3aed';
+    else if (t.priority === 1) color = '#3b82f6';
+    else if (t.priority === 0) color = '#f59e0b';
+    if (t.status === 'stopped') color = '#ef4444';
+    ctx.beginPath(); ctx.fillStyle = color; ctx.ellipse(x, y, 12, 8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#e6eef8'; ctx.font = '11px Inter, sans-serif'; ctx.fillText(`${t.id}`, x-18, y-12);
+  }
+
+  // Physics step for graph-based sim (works for both live sim and deterministic sim)
+  function graphPhysicsStep(state) {
+    const tr = state.trains;
+    // order trains so those closer to destination attempt to move first
+    tr.sort((a,b) => {
+      const aRemaining = a.pathEdges.length - a.edgeIndex - (a.progress);
+      const bRemaining = b.pathEdges.length - b.edgeIndex - (b.progress);
+      if (aRemaining !== bRemaining) return aRemaining - bRemaining; // smaller remaining first
+      if (b.priority !== a.priority) return b.priority - a.priority; // higher priority first
+      return b.progress - a.progress;
+    });
+
+    for (let i=0;i<tr.length;i++){
+      const t = tr[i];
+      if (t.edgeIndex >= t.pathEdges.length) { // finished
+        t.status = 'finished';
+        if (!t.actualArrival) t.actualArrival = state.time;
+        continue;
+      }
+      // hold timer
+      if (t._holdRemaining && t._holdRemaining > 0) {
+        t._holdRemaining -= 1;
+        t.status = 'stopped';
+        continue;
+      }
+      const edgeId = t.pathEdges[t.edgeIndex];
+      const edge = state.edgesMap[edgeId];
+      // if this train does not currently occupy the edge (newly about to enter)
+      if (edge.occupiedBy !== t.id && (t.progress === 0)) {
+        // cannot enter if blocked or occupied
+        if (edge.blocked || edge.occupiedBy) {
+          t.status = 'stopped';
+          continue;
+        } else {
+          // reserve it
+          edge.occupiedBy = t.id;
+          t.status = 'running';
+        }
+      }
+
+      // move along edge if occupying it
+      if (edge.occupiedBy === t.id) {
+        // progress increment scaled by speed
+        // if weather scenario active, scale speed
+        let speedFactor = 1.0;
+        if (state.scenario.type === 'weather' && state.scenario.active) speedFactor = 0.6;
+        const delta = t.speed_nominal * speedScale * speedFactor;
+        t.progress += delta;
+
+        if (t.progress >= 1.0) {
+          // finished edge: release it and step to next
+          edge.occupiedBy = null;
+          t.progress = 0;
+          t.edgeIndex += 1;
+          // if next edge exists, attempt to reserve the next edge now in this same tick
+          if (t.edgeIndex < t.pathEdges.length) {
+            const nextEdge = state.edgesMap[t.pathEdges[t.edgeIndex]];
+            if (nextEdge.blocked || nextEdge.occupiedBy) {
+              // cannot enter next edge: stay at node until free
+              t.status = 'stopped';
+            } else {
+              // occupy next edge immediately
+              nextEdge.occupiedBy = t.id;
+              t.status = 'running';
+              // progress remains 0 (start of that edge)
+            }
+          } else {
+            // reached final destination
+            t.status = 'finished';
+            if (!t.actualArrival) t.actualArrival = state.time;
+          }
+        } else {
+          // mid-edge
+          t.status = 'running';
+        }
+      } else {
+        // not occupying edge but maybe waiting to enter - remain stopped
+        t.status = 'stopped';
+      }
+      // update current estimate of delay (estimate arrival using remaining edges/time)
+      let remainingTicks = 0;
+      if (t.edgeIndex < t.pathEdges.length) {
+        const edgesLeft = (t.pathEdges.length - t.edgeIndex);
+        remainingTicks = edgesLeft * (1 / Math.max(0.001, t.speed_nominal)) * 10; // scaled
+      }
+      // estimated arrival = current time + remainingTicks
+      const estimatedArr = state.time + remainingTicks;
+      t.delay = Math.max(0, estimatedArr - (t.scheduledArrival || 0));
+    }
+  }
+
+  // Deterministic simulator (fast, runs without rendering) used to evaluate baseline vs AI
+  function runDeterministicSim(trainsInput, scenarioInput, options={}) {
+    // deep clone graph and trains
+    const state = {
+      time: 0,
+      trains: deepClone(trainsInput),
+      edges: deepClone(edges),
+      edgesMap: {},
+      scenario: deepClone(scenarioInput)
+    };
+    state.edges.forEach(e => state.edgesMap[e.id] = e);
+
+    // if options.applyAction specified (e.g., hold)
+    if (options.applyAction) {
+      const act = options.applyAction;
+      const target = state.trains.find(t => t.id === act.trainId);
+      if (target && act.type === 'hold') target._holdRemaining = act.holdTime;
+      if (target && act.type === 'reroute') {
+        // naive: increase scheduledArrival by extraTime
+        target.scheduledArrival += act.extraTime;
+      }
+    }
+
+    const maxT = 300;
+    const avgDelaySeries = [];
+    const throughputSeries = [];
+
+    for (let t=0;t<maxT;t++){
+      // scenario activation windows - mimic current sim: active 2..120 ticks for track/weather; engine at 4..16
+      if (state.scenario.type === 'track') {
+        state.scenario.active = (t >= 2 && t < 120);
+        // set blocked flag on the edge
+        const be = state.edgesMap[state.scenario.blockedEdgeId];
+        if (be) be.blocked = state.scenario.active;
+      } else if (state.scenario.type === 'engine') {
+        state.scenario.active = (t >= 4 && t < 4 + 12);
+        state.scenario.targetId = state.scenario.targetId;
+      } else if (state.scenario.type === 'weather') {
+        state.scenario.active = (t >= 1 && t < 1 + 80);
+      } else {
+        state.scenario.active = false;
+      }
+
+      // if engine failure scenario active, freeze that train's speed by setting _holdRemaining
+      if (state.scenario.type === 'engine' && state.scenario.active && state.scenario.targetId) {
+        const tg = state.trains.find(x => x.id === state.scenario.targetId);
+        if (tg) tg._holdRemaining = tg._holdRemaining ? tg._holdRemaining : 12;
+      }
+
+      graphPhysicsStep(state);
+
+      const finished = state.trains.filter(x => x.edgeIndex >= x.pathEdges.length).length;
+      const avgDelay = state.trains.reduce((s,x)=> s + (x.delay || 0), 0) / state.trains.length;
+      avgDelaySeries.push(avgDelay);
+      throughputSeries.push(finished);
+      state.time += 1;
+      if (finished === state.trains.length) break;
+    }
+
+    const avgDelayFinal = state.trains.reduce((s,x)=> s + (x.delay || 0),0) / state.trains.length;
+    const throughput = state.trains.filter(x => x.edgeIndex >= x.pathEdges.length).length;
+    return { avgDelay: avgDelayFinal, throughput, avgDelaySeries, throughputSeries };
+  }
+
+  // Simple heuristic recommender adapted to graph:
+  function computeRecommendationGraph(trainsState, scenarioState) {
+    // If track blocked, find a high-priority train whose path includes the blocked edge soon
+    let action = null;
+
+    if (scenarioState.type === 'track') {
+      const blockedId = scenarioState.blockedEdgeId;
+      // find the express/priority train that will encounter the blocked edge earliest
+      const impacted = trainsState
+        .filter(t => t.pathEdges.includes(blockedId))
+        .map(t => {
+          const idx = t.pathEdges.indexOf(blockedId);
+          return { train: t, distanceEdges: idx - t.edgeIndex - t.progress };
+        })
+        .filter(x=>x.distanceEdges >= -1) // those that haven't passed it
+        .sort((a,b) => a.distanceEdges - b.distanceEdges);
+
+      if (impacted.length) {
+        const top = impacted[0].train;
+        // find a lower priority train that is behind top on same route (i.e., has smaller edgeIndex)
+        const behind = trainsState
+          .filter(t => t.id !== top.id && t.pathEdges.includes(blockedId))
+          .map(t => ({ train: t, distance: t.edgeIndex - top.edgeIndex }))
+          .sort((a,b) => b.distance - a.distance)
+          .find(x => x.train.priority < top.priority);
+
+        if (behind) {
+          const hold = Math.max(2, Math.min(12, Math.round((top.edgeIndex - behind.train.edgeIndex + 1) * 3)));
+          action = { type:'hold', trainId: behind.train.id, holdTime: hold, explain: `Hold ${behind.train.id} (${behind.train.type}) for ${hold} ticks to allow ${top.id} (${top.type}) to get priority across blocked edge ${blockedId}.` };
+        } else {
+          // fallback reroute a low-priority
+          const low = trainsState.find(t => t.priority <= 0);
+          if (low) action = { type:'reroute', trainId: low.id, extraTime: 6, explain: `Reroute ${low.id} (adds +6 ticks) to avoid blocked edge ${blockedId}.` };
+        }
+      }
+    } else if (scenarioState.type === 'engine') {
+      const targetId = scenarioState.targetId;
+      const impacted = trainsState.find(t => t.id === targetId);
+      if (impacted) {
+        // recommend holding the train immediately behind it (if any)
+        const behind = trainsState.filter(t => t.edgeIndex <= impacted.edgeIndex - 1).sort((a,b)=> b.edgeIndex - a.edgeIndex)[0];
+        if (behind) action = { type:'hold', trainId: behind.id, holdTime: 5, explain: `Hold ${behind.id} to avoid bunching behind failed ${impacted.id}.` };
+      }
+    } else if (scenarioState.type === 'weather') {
+      // hold lowest priority trains to reduce bunching
+      const low = trainsState.filter(t=>t.priority <=1).slice(0,2);
+      if (low.length) action = { type:'hold', trainId: low[0].id, holdTime: 4, explain: `Hold ${low[0].id} to reduce bunching in adverse weather.` };
+    }
+
+    const base = runDeterministicSim(trainsState, scenarioState);
+    let after = base;
+    if (action) after = runDeterministicSim(trainsState, scenarioState, { applyAction: action });
+
+    const improvement = {
+      avgDelayBefore: +(base.avgDelay).toFixed(2),
+      avgDelayAfter: +(after.avgDelay).toFixed(2),
+      deltaDelay: +(base.avgDelay - after.avgDelay).toFixed(2),
+      throughputBefore: base.throughput,
+      throughputAfter: after.throughput
+    };
+
+    return { action, improvement, baseSeries: base.avgDelaySeries, afterSeries: after.avgDelaySeries };
+  }
+
+  // UI helpers
+  function updateTrainSelect(){
+    const sel = document.getElementById('trainSelect');
+    sel.innerHTML = '';
+    trains.forEach((t, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `${t.id} — ${t.name} (${t.type})`;
+      sel.appendChild(opt);
+    });
+    sel.onchange = () => showTrainDetails(parseInt(sel.value));
+    if (trains.length) { sel.value = 0; showTrainDetails(0); }
+  }
+  function showTrainDetails(idx){
+    const d = document.getElementById('trainDetails');
+    if (trains[idx]) {
+      const t = trains[idx];
+      const remaining = Math.max(0, t.pathEdges.length - t.edgeIndex);
+      d.innerHTML = `
+        <div><strong>${t.id}</strong> (${t.name})</div>
+        <div class="small">Type: ${t.type} — Priority: ${t.priority}</div>
+        <div class="small">Edge idx: ${t.edgeIndex} / ${t.pathEdges.length} — Remaining edges: ${remaining}</div>
+        <div class="small">Progress on current edge: ${(t.progress*100).toFixed(0)}%</div>
+        <div class="small">Status: ${t.status}</div>
+      `;
+    } else d.innerHTML = '—';
+  }
+
+  function updateLiveTable(){
+    const tbody = document.getElementById('liveTable');
+    tbody.innerHTML = '';
+    const list = trains.slice(0,10);
+    list.forEach(t => {
+      const tr = document.createElement('tr'); tr.className = 'hover:bg-gray-800';
+      tr.innerHTML = `
+        <td class="py-2 px-2">${t.id}</td>
+        <td class="py-2 px-2">${t.name}</td>
+        <td class="py-2 px-2 ${t.status==='running' ? 'text-green-400' : (t.status==='finished' ? 'text-gray-400' : 'text-yellow-400')}">${t.status}</td>
+        <td class="py-2 px-2">${Math.round(t.delay || 0)} min</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // metrics
+  function updateSimMetricsDisplay(){
+    const avg = (trains.reduce((s,x)=> s + (x.delay || 0), 0) / Math.max(1,trains.length)).toFixed(2);
+    const thr = trains.filter(x=>x.edgeIndex >= x.pathEdges.length).length;
+    document.getElementById('simAvgDelay').innerText = `${avg} min`;
+    document.getElementById('simThroughput').innerText = `${thr} trains finished`;
+  }
+
+  // chart helper
+  let simChart = null;
+  function updateSimChart(baseSeries=[], afterSeries=[]){
+    const ctx = document.getElementById('simResultChart').getContext('2d');
+    const labels = baseSeries.map((_,i)=> `${i}m`);
+    if (simChart) simChart.destroy();
+    simChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Baseline avg delay', data: baseSeries, borderColor: '#ef4444', tension:0.3, fill:false },
+          { label: 'AI-assisted avg delay', data: afterSeries, borderColor: '#10b981', tension:0.3, fill:false }
+        ]
+      },
+      options: { responsive:true, scales:{ x:{ ticks:{ color:'#cbd5e1' } }, y:{ ticks:{ color:'#cbd5e1' }, beginAtZero:true } } }
+    });
+  }
+
+  // wiring UI buttons
+  document.getElementById('numTrains').oninput = () => resetSim();
+  document.getElementById('scenarioSelect').onchange = (e) => { /* handled at start */ };
+  document.getElementById('tabDash').onclick = () => { document.getElementById('dashboardView').style.display='block'; document.getElementById('simulationView').style.display='none'; setActiveTab('tabDash'); };
+  document.getElementById('tabSim').onclick = () => { document.getElementById('dashboardView').style.display='none'; document.getElementById('simulationView').style.display='block'; setActiveTab('tabSim'); };
+  function setActiveTab(id) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  setActiveTab('tabDash');
+
+  document.getElementById('btnReset').onclick = () => { if (simInterval) clearInterval(simInterval); resetSim(); };
+  document.getElementById('btnPause').onclick = () => { if (simInterval) { clearInterval(simInterval); simInterval=null; simRunning=false; } else { startSim(); } };
+  document.getElementById('btnStart').onclick = startSim;
+
+  // apply scenario and start simulation
+  function buildScenario() {
+    const sel = document.getElementById('scenarioSelect').value;
+    if (sel === 'track') {
+      // pick a random edge to block
+      const e = edges[Math.floor(Math.random()*edges.length)];
+      return { type:'track', blockedEdgeId: e.id };
+    } else if (sel === 'engine') {
+      const idx = Math.floor(Math.random()*trains.length);
+      return { type:'engine', targetId: trains[idx].id };
+    } else if (sel === 'weather') {
+      return { type:'weather' };
+    } else if (sel === 'random') {
+      const choices = ['track','engine','weather'];
+      const ch = choices[Math.floor(Math.random()*choices.length)];
+      if (ch === 'track') return { type:'track', blockedEdgeId: edges[Math.floor(Math.random()*edges.length)].id };
+      if (ch === 'engine') return { type:'engine', targetId: trains[Math.floor(Math.random()*trains.length)].id };
+      return { type:'weather' };
+    } else {
+      return { type:'none' };
+    }
+  }
+
+  function startSim() {
+    if (simRunning) return;
+    // build scenario at start and set edges accordingly
+    scenarioObj = buildScenario();
+    // apply immediate flags
+    if (scenarioObj.type === 'track') {
+      // set blocked flag on chosen edge in global edges
+      edges.forEach(e => e.blocked = false);
+      const be = edgesMap[scenarioObj.blockedEdgeId];
+      if (be) be.blocked = true;
+      document.getElementById('aiOutput').innerText = `Blocked edge: ${scenarioObj.blockedEdgeId}`;
+    } else if (scenarioObj.type === 'engine') {
+      document.getElementById('aiOutput').innerText = `Engine failure simulated on: ${scenarioObj.targetId}`;
+    } else {
+      document.getElementById('aiOutput').innerText = 'Scenario active: ' + scenarioObj.type;
+    }
+
+    // ensure edgesMap references are up-to-date
+    edges.forEach(e => edgesMap[e.id] = e);
+
+    simRunning = true;
+    simInterval = setInterval(()=> {
+      // build animScenario - set active windows similar to deterministic sim
+      const anim = deepClone(scenarioObj);
+      anim.active = (anim.type !== 'none' && simTime > 1 && simTime < 120);
+      // if engine scenario, target becomes held while active (we implement inside graphPhysicsStep by setting _holdRemaining earlier)
+      if (anim.type === 'engine' && anim.active && anim.targetId) {
+        const t = trains.find(x=>x.id === anim.targetId);
+        if (t && !t._holdRemaining) t._holdRemaining = 12;
+      }
+
+      // create a runtime state object for physics step
+      const runtimeState = { time: simTime, trains, edges, edgesMap, scenario: anim };
+      graphPhysicsStep(runtimeState);
+
+      simTime++;
+      updateLiveTable();
+      drawSection();
+      updateSimMetricsDisplay();
+
+      const finished = trains.filter(x=>x.edgeIndex >= x.pathEdges.length).length;
+      if (finished === trains.length || simTime > simDurationLimit) {
+        clearInterval(simInterval); simInterval = null; simRunning=false;
+        // evaluate final AI suggestion automatically
+        const rec = computeRecommendationGraph(deepClone(trains), deepClone(scenarioObj));
+        if (rec.action) {
+          document.getElementById('aiOutput').innerText = `${rec.action.explain}\n\nExpected avg delay: ${rec.improvement.avgDelayBefore} → ${rec.improvement.avgDelayAfter} (Δ ${rec.improvement.deltaDelay} min)`;
+          updateSimChart(rec.baseSeries, rec.afterSeries);
+        } else {
+          document.getElementById('aiOutput').innerText = 'No recommendation available.';
+        }
+      }
+    }, TICK_MS);
+  }
+
+  document.getElementById('btnRunAI').onclick = () => {
+    // prepare scenario object consistent with runtime (don't mutate global edges here)
+    const s = buildScenario();
+    // if it's track, ensure blockedEdgeId exists
+    if (s.type === 'track' && !s.blockedEdgeId) {
+      s.type = 'none';
+    }
+    const rec = computeRecommendationGraph(deepClone(trains), deepClone(s));
+    if (!rec.action) {
+      document.getElementById('aiOutput').innerText = 'No specific recommendation for this scenario.';
+      updateSimChart(rec.baseSeries, rec.afterSeries);
+      return;
+    }
+    const text = `${rec.action.explain}\n\nExpected avg delay: ${rec.improvement.avgDelayBefore} → ${rec.improvement.avgDelayAfter} (Δ ${rec.improvement.deltaDelay} min). Throughput: ${rec.improvement.throughputBefore} → ${rec.improvement.throughputAfter}.`;
+    document.getElementById('aiOutput').innerText = text;
+    updateSimChart(rec.baseSeries, rec.afterSeries);
+  };
+
+  // initial dashboard charts
+  function createMainCharts(){
+    const dCtx = document.getElementById('delaysChart').getContext('2d');
+    new Chart(dCtx, {
+      type:'line',
+      data:{
+        labels:['12:00','12:15','12:30','12:45','13:00','13:15'],
+        datasets:[
+          { label:'02357 (Delhi Express)', data:[0,5,8,10,9,7], borderColor:'#f59e0b', tension:0.3, fill:false },
+          { label:'22238 (Vande Bharat)', data:[0,2,5,8,12,18], borderColor:'#ef4444', tension:0.3, fill:false }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#cbd5e1'}}}, scales:{ x:{ ticks:{color:'#cbd5e1'} }, y:{ ticks:{ color:'#cbd5e1' } } } }
+    });
+
+    const tCtx = document.getElementById('throughputChart').getContext('2d');
+    new Chart(tCtx, {
+      type:'bar',
+      data:{ labels:['Track A','Track B','Track C','Track D','Track E'], datasets:[{ label:'Throughput (%)', data:[85,92,78,88,75], backgroundColor:'#10b981'}] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:'#cbd5e1'} }, y:{ ticks:{ color:'#cbd5e1' }, beginAtZero:true} } }
+    });
+  }
+
+  // initialize
+  resetSim();
+  createMainCharts();
+  drawSection();
+  setInterval(()=> { updateTrainSelect(); drawSection(); }, 2000);
+
+  </script>
+</body>
+</html>
